@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Home - LAFVIN Arduino</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap');
+
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --accent: #00d4ff;
+    --accent2: #7c3aed;
+    --green: #10b981;
+    --red: #ef4444;
+    --yellow: #f59e0b;
+    --orange: #f97316;
+    --text: #e2e8f0;
+    --text-dim: #64748b;
+    --border: rgba(0,212,255,0.15);
+    --glow: 0 0 20px rgba(0,212,255,0.3);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Rajdhani', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    background-image:
+      radial-gradient(ellipse at 20% 20%, rgba(124,58,237,0.08) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 80%, rgba(0,212,255,0.06) 0%, transparent 60%);
+  }
+
+  /* ── HEADER ── */
+  header {
+    padding: 1.5rem 2rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(17,24,39,0.8);
+    backdrop-filter: blur(10px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    font-family: 'Orbitron', monospace;
+    font-size: 1.3rem;
+    font-weight: 900;
+    letter-spacing: 2px;
+    color: var(--accent);
+    text-shadow: var(--glow);
+  }
+  .logo span { color: var(--text-dim); font-weight: 400; font-size: 0.9rem; }
+
+  /* ── BLE STATUS BAR ── */
+  #ble-bar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  #ble-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: all 0.3s;
+  }
+  .dot.connected { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 2s infinite; }
+  .dot.connecting { background: var(--yellow); box-shadow: 0 0 8px var(--yellow); animation: pulse 0.8s infinite; }
+  .dot.error { background: var(--red); box-shadow: 0 0 8px var(--red); }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  #btn-connect {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 0.5rem 1.2rem;
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--accent);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  #btn-connect:hover { background: rgba(0,212,255,0.1); box-shadow: var(--glow); }
+  #btn-connect.connected { border-color: var(--red); color: var(--red); }
+  #btn-connect.connected:hover { background: rgba(239,68,68,0.1); }
+
+  /* ── MAIN LAYOUT ── */
+  main {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+    display: grid;
+    gap: 1.5rem;
+  }
+
+  /* ── LOG ── */
+  #log-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    font-family: monospace;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    height: 52px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+  }
+  #log-text { color: var(--accent); }
+
+  /* ── SECTION TITLE ── */
+  .section-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── GRID CONTROLS ── */
+  .controls-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+  }
+
+  /* ── CARD ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, transparent 60%, rgba(0,212,255,0.03));
+    pointer-events: none;
+  }
+  .card:hover { border-color: rgba(0,212,255,0.35); }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+  }
+
+  .card-icon {
+    font-size: 1.4rem;
+    width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface2);
+    border-radius: 8px;
+  }
+
+  .card-name {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    flex: 1;
+    margin-left: 0.75rem;
+  }
+
+  /* ── TOGGLE SWITCH ── */
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .toggle-label { font-size: 0.85rem; color: var(--text-dim); }
+
+  .toggle {
+    position: relative;
+    width: 52px; height: 28px;
+    cursor: pointer;
+  }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .slider {
+    position: absolute;
+    inset: 0;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 28px;
+    transition: 0.3s;
+  }
+  .slider::before {
+    content: '';
+    position: absolute;
+    width: 20px; height: 20px;
+    left: 3px; top: 3px;
+    background: var(--text-dim);
+    border-radius: 50%;
+    transition: 0.3s;
+  }
+  .toggle input:checked + .slider { background: rgba(0,212,255,0.15); border-color: var(--accent); }
+  .toggle input:checked + .slider::before { transform: translateX(24px); background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+
+  /* state badge */
+  .badge {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    background: var(--surface2);
+    color: var(--text-dim);
+    transition: all 0.3s;
+  }
+  .badge.on { background: rgba(16,185,129,0.15); color: var(--green); }
+  .badge.off { background: rgba(100,116,139,0.1); color: var(--text-dim); }
+
+  /* ── SENSOR PANEL ── */
+  .sensors-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 1rem;
+  }
+
+  .sensor-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem;
+    text-align: center;
+  }
+
+  .sensor-icon { font-size: 1.6rem; margin-bottom: 0.4rem; }
+
+  .sensor-value {
+    font-family: 'Orbitron', monospace;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+  }
+
+  .sensor-unit {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    margin-left: 3px;
+  }
+
+  .sensor-name {
+    font-size: 0.72rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-top: 0.3rem;
+  }
+
+  /* ── GET DATA BTN ── */
+  #btn-getdata {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    padding: 0.65rem 1.5rem;
+    border: 1px solid var(--accent2);
+    border-radius: 6px;
+    background: rgba(124,58,237,0.1);
+    color: #a78bfa;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  #btn-getdata:hover { background: rgba(124,58,237,0.2); box-shadow: 0 0 15px rgba(124,58,237,0.3); }
+  #btn-getdata.active { background: rgba(124,58,237,0.25); border-color: #7c3aed; }
+
+  /* ── PASSWORD DOOR ── */
+  .password-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+
+  .password-input {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.9rem;
+    color: var(--text);
+    letter-spacing: 3px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .password-input:focus { border-color: var(--accent); }
+
+  .btn-door {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-open { background: rgba(16,185,129,0.2); color: var(--green); border: 1px solid var(--green); }
+  .btn-open:hover { background: rgba(16,185,129,0.35); }
+  .btn-close-door { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid var(--red); }
+  .btn-close-door:hover { background: rgba(239,68,68,0.3); }
+
+  .door-status {
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    min-height: 1.2em;
+    color: var(--text-dim);
+    transition: color 0.3s;
+  }
+  .door-status.right { color: var(--green); }
+  .door-status.error { color: var(--red); }
+
+  /* ── WINDOW CARD ── */
+  .window-btns {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+  .btn-action {
+    flex: 1;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 0.5rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-open-w { background: rgba(0,212,255,0.1); color: var(--accent); border: 1px solid var(--accent); }
+  .btn-open-w:hover { background: rgba(0,212,255,0.2); }
+  .btn-close-w { background: rgba(100,116,139,0.1); color: var(--text-dim); border: 1px solid var(--border); }
+  .btn-close-w:hover { background: rgba(100,116,139,0.2); border-color: var(--text-dim); }
+
+  /* parking btns */
+  .btn-park-open { background: rgba(16,185,129,0.1); color: var(--green); border: 1px solid var(--green); }
+  .btn-park-open:hover { background: rgba(16,185,129,0.25); }
+  .btn-park-close { background: rgba(239,68,68,0.1); color: var(--red); border: 1px solid var(--red); }
+  .btn-park-close:hover { background: rgba(239,68,68,0.25); }
+
+  /* ── NOT SUPPORTED WARNING ── */
+  #no-ble-warning {
+    display: none;
+    background: rgba(239,68,68,0.1);
+    border: 1px solid rgba(239,68,68,0.4);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    font-size: 0.9rem;
+    color: #fca5a5;
+    line-height: 1.6;
+  }
+
+  /* ── SEPARATOR ── */
+  .sep { border: none; border-top: 1px solid var(--border); }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 600px) {
+    header { padding: 1rem; flex-wrap: wrap; gap: 0.75rem; }
+    .logo { font-size: 1rem; }
+    main { padding: 1rem; }
+    .controls-grid { grid-template-columns: 1fr 1fr; }
+    .sensors-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div>
+    <div class="logo">SMART HOME <span>/ LAFVIN</span></div>
+  </div>
+  <div id="ble-bar">
+    <div id="ble-status">
+      <div class="dot" id="dot"></div>
+      <span id="ble-text">Deconectat</span>
+    </div>
+    <button id="btn-connect" onclick="toggleBLE()">CONECTARE BLE</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- WARNING dacă browserul nu suportă Web BLE -->
+  <div id="no-ble-warning">
+    ⚠️ <strong>Browserul tău nu suportă Web Bluetooth.</strong>
+    Pe iPhone/iPad folosește <strong>Bluefy</strong> sau <strong>WebBLE</strong> din App Store.
+    Pe Android/PC folosește <strong>Google Chrome</strong> cu Web Bluetooth activat.
+  </div>
+
+  <!-- LOG -->
+  <div id="log-box">
+    <span style="color:var(--text-dim);margin-right:0.5rem;">›</span>
+    <span id="log-text">Aștept conexiune Bluetooth BLE (JDY-16)...</span>
+  </div>
+
+  <!-- ═══════════════════════════════ ACTUATORI ═══════════════════════════════ -->
+  <div>
+    <div class="section-title">Actuatori · Control</div>
+
+    <div class="controls-grid">
+
+      <!-- LED -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon">💡</div>
+          <div class="card-name">LED<br>Iluminare</div>
+          <span class="badge off" id="badge-led">OFF</span>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-label">Aprins / Stins</span>
+          <label class="toggle">
+            <input type="checkbox" id="sw-led" onchange="toggleDevice(this,'%A#','%B#','badge-led')">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- FAN -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon">🌀</div>
+          <div class="card-name">Ventilator<br>Racire</div>
+          <span class="badge off" id="badge-fan">OFF</span>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-label">Pornit / Oprit</span>
+          <label class="toggle">
+            <input type="checkbox" id="sw-fan" onchange="toggleDevice(this,'%E#','%F#','badge-fan')">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- WINDOW -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon">🪟</div>
+          <div class="card-name">Fereastra<br>Rain control</div>
+        </div>
+        <div class="window-btns">
+          <button class="btn-action btn-open-w" onclick="sendCmd('%M#')">DESCHIDE</button>
+          <button class="btn-action btn-close-w" onclick="sendCmd('%L#')">ÎNCHIDE</button>
+        </div>
+      </div>
+
+      <!-- PARKING GATE -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon">🚗</div>
+          <div class="card-name">Bariera<br>Parcare</div>
+        </div>
+        <div class="window-btns">
+          <button class="btn-action btn-park-open" onclick="sendCmd('%I#')">DESCHIDE</button>
+          <button class="btn-action btn-park-close" onclick="sendCmd('%J#')">ÎNCHIDE</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════ USA CU PAROLA ═══════════════════════════════ -->
+  <div>
+    <div class="section-title">Ușă · Parolă</div>
+    <div class="card" style="max-width:420px;">
+      <div class="card-header">
+        <div class="card-icon">🔐</div>
+        <div class="card-name">Password Door<br>Servo D9</div>
+      </div>
+      <p style="font-size:0.8rem;color:var(--text-dim);margin-bottom:0.75rem;">
+        Parola implicită din program: <strong style="color:var(--accent);font-family:monospace">1234</strong>
+      </p>
+      <div class="password-row">
+        <input type="text" class="password-input" id="door-pass" value="1234" maxlength="10" placeholder="Parolă">
+        <button class="btn-door btn-open" onclick="openDoor()">DESCHIDE</button>
+        <button class="btn-door btn-close-door" onclick="sendCmd('%D#')">ÎNCHIDE</button>
+      </div>
+      <div class="door-status" id="door-status">—</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════ SENZORI ═══════════════════════════════ -->
+  <div>
+    <div class="section-title">Senzori · Date Live</div>
+
+    <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem;">
+      <button id="btn-getdata" onclick="toggleDataStream()">
+        <span id="getdata-icon">▶</span> GET DATA
+      </button>
+      <span style="font-size:0.78rem;color:var(--text-dim);">Trimite <code style="color:var(--accent)">%K#</code> la fiecare 500ms</span>
+    </div>
+
+    <div class="sensors-grid">
+      <div class="sensor-card">
+        <div class="sensor-icon">☀️</div>
+        <div class="sensor-value"><span id="s-light">—</span></div>
+        <div class="sensor-name">Lumină<br><small style="font-size:0.6rem">0–1024</small></div>
+      </div>
+      <div class="sensor-card">
+        <div class="sensor-icon">🌡️</div>
+        <div class="sensor-value"><span id="s-temp">—</span><span class="sensor-unit">°C</span></div>
+        <div class="sensor-name">Temperatură</div>
+      </div>
+      <div class="sensor-card">
+        <div class="sensor-icon">💧</div>
+        <div class="sensor-value"><span id="s-hum">—</span><span class="sensor-unit">%</span></div>
+        <div class="sensor-name">Umiditate aer</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════ DEBUG ═══════════════════════════════ -->
+  <div>
+    <div class="section-title">Debug · Log BLE
+      <button onclick="document.getElementById('debug-lines').innerHTML=''" style="font-size:0.65rem;padding:2px 8px;background:transparent;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;cursor:pointer;">CLEAR</button>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:0.75rem 1rem;font-family:monospace;font-size:0.75rem;color:var(--text-dim);max-height:160px;overflow-y:auto;">
+      <div id="debug-lines" style="display:flex;flex-direction:column;gap:3px;">
+        <div>Asteapta actiuni BLE...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════ INFO ═══════════════════════════════ -->
+  <hr class="sep">
+  <div style="font-size:0.75rem;color:var(--text-dim);line-height:1.8;">
+    <strong style="color:var(--text);font-family:'Orbitron',monospace;font-size:0.65rem;letter-spacing:2px;">COMENZI BLE (Protocol: %CMD#)</strong><br>
+    LED ON: <code style="color:var(--accent)">%A#</code> &nbsp;
+    LED OFF: <code style="color:var(--accent)">%B#</code> &nbsp;
+    Door CLOSE: <code style="color:var(--accent)">%D#</code> &nbsp;
+    Fan ON: <code style="color:var(--accent)">%E#</code> &nbsp;
+    Fan OFF: <code style="color:var(--accent)">%F#</code> &nbsp;
+    Park OPEN: <code style="color:var(--accent)">%I#</code> &nbsp;
+    Park CLOSE: <code style="color:var(--accent)">%J#</code> &nbsp;
+    Window OPEN: <code style="color:var(--accent)">%M#</code> &nbsp;
+    Window CLOSE: <code style="color:var(--accent)">%L#</code> &nbsp;
+    Door OPEN: <code style="color:var(--accent)">%Q{password}#</code> &nbsp;
+    Get Data: <code style="color:var(--accent)">%K#</code>
+    <br><br>
+    <strong style="color:var(--text)">BLE Module:</strong> JDY-16 · BLE 4.2 · UART · 9600 baud · Service UUID: 0xFFE0 · Char UUID: 0xFFE1
+  </div>
+
+</main>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  Web Bluetooth BLE — LAFVIN Smart Home Kit (JDY-16)
+//  Protocol: %CMD# (3 chars: %, command, #)
+//  Scaneaza TOATE dispozitivele, apoi incearca mai multe UUID-uri
+// ═══════════════════════════════════════════════════════════════
+
+let bleDevice = null;
+let bleChar = null;
+let dataInterval = null;
+let isStreaming = false;
+
+// JDY-16 poate expune serviciul FFE0 sau FFE5 in functie de firmware
+const CANDIDATE_SERVICES = [
+  '0000ffe0-0000-1000-8000-00805f9b34fb',
+  '0000ffe5-0000-1000-8000-00805f9b34fb',
+  '6e400001-b5a3-f393-e0a9-e50e24dcca9e', // Nordic UART (uneori folosit)
+];
+const CANDIDATE_CHARS = [
+  '0000ffe1-0000-1000-8000-00805f9b34fb',
+  '0000ffe9-0000-1000-8000-00805f9b34fb',
+  '6e400002-b5a3-f393-e0a9-e50e24dcca9e',
+];
+
+// ── Check support ──
+window.addEventListener('load', () => {
+  if (!navigator.bluetooth) {
+    document.getElementById('no-ble-warning').style.display = 'block';
+    setStatus('BLE nesuprat - foloseste Bluefy', 'error');
+  }
+});
+
+// ── STATUS HELPERS ──
+function setStatus(msg, state = 'idle') {
+  const dot = document.getElementById('dot');
+  const txt = document.getElementById('ble-text');
+  const btn = document.getElementById('btn-connect');
+  dot.className = 'dot ' + (state === 'connected' ? 'connected' : state === 'connecting' ? 'connecting' : state === 'error' ? 'error' : '');
+  txt.textContent = msg;
+  if (state === 'connected') {
+    btn.textContent = 'DECONECTARE';
+    btn.classList.add('connected');
+  } else {
+    btn.textContent = 'CONECTARE BLE';
+    btn.classList.remove('connected');
+  }
+}
+
+function log(msg) {
+  document.getElementById('log-text').textContent = msg;
+  addDebugLine(msg);
+  console.log('[BLE]', msg);
+}
+
+function addDebugLine(msg) {
+  const box = document.getElementById('debug-lines');
+  if (!box) return;
+  const line = document.createElement('div');
+  line.textContent = new Date().toLocaleTimeString() + '  ' + msg;
+  box.prepend(line);
+  // keep last 20 lines
+  while (box.children.length > 20) box.removeChild(box.lastChild);
+}
+
+// ── CONNECT / DISCONNECT ──
+async function toggleBLE() {
+  if (bleDevice && bleDevice.gatt.connected) {
+    stopDataStream();
+    bleDevice.gatt.disconnect();
+    bleDevice = null; bleChar = null;
+    setStatus('Deconectat', 'idle');
+    log('Deconectat de la dispozitiv.');
+    return;
+  }
+  await connectBLE();
+}
+
+async function connectBLE() {
+  try {
+    setStatus('Scanare...', 'connecting');
+    log('Se deschide selectorul BLE — alege JDY-16...');
+
+    // Cerem TOATE serviciile cunoscute ca optionale
+    // Asta e OBLIGATORIU pe Chrome/Bluefy — altfel getPrimaryServices() e blocat
+    bleDevice = await navigator.bluetooth.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: CANDIDATE_SERVICES
+    });
+
+    bleDevice.addEventListener('gattserverdisconnected', onDisconnect);
+    log('Ales: "' + (bleDevice.name || 'fara nume') + '" — conectare GATT...');
+    setStatus('Conectare GATT...', 'connecting');
+
+    const server = await bleDevice.gatt.connect();
+    log('GATT OK! Enumar serviciile disponibile...');
+
+    // ── Pas 1: enumeram toate serviciile ──
+    let allServices = [];
+    try {
+      allServices = await server.getPrimaryServices();
+      log('Servicii gasite (' + allServices.length + '): ' +
+        allServices.map(s => shortUUID(s.uuid)).join(' | '));
+    } catch(e) {
+      log('Enumerare servicii esuata: ' + e.message);
+    }
+
+    // ── Pas 2: pentru fiecare serviciu, enumeram caracteristicile ──
+    bleChar = null;
+    for (const svc of allServices) {
+      if (bleChar) break;
+      let chars = [];
+      try { chars = await svc.getCharacteristics(); } catch(e) { continue; }
+      log('Serv ' + shortUUID(svc.uuid) + ' → caract: ' + chars.map(c => shortUUID(c.uuid)).join(', '));
+      for (const ch of chars) {
+        // Vrem o caracteristica cu proprietatea WRITE sau WRITE_WITHOUT_RESPONSE
+        const props = ch.properties;
+        if (props.write || props.writeWithoutResponse) {
+          bleChar = ch;
+          log('✓ Caracteristica de scriere aleasa: ' + shortUUID(ch.uuid) +
+              ' [write=' + props.write + ' writeNoResp=' + props.writeWithoutResponse + ']');
+          // Activate notificari daca suporta
+          if (props.notify || props.indicate) {
+            try {
+              await ch.startNotifications();
+              ch.addEventListener('characteristicvaluechanged', onDataReceived);
+              log('Notificari activate pe aceasta caracteristica.');
+            } catch(e) { log('Notificari indisponibile (OK).'); }
+          }
+          break;
+        }
+      }
+    }
+
+    // ── Pas 3: daca enumerarea a esuat (iOS restrictii), incearca UUID-urile hardcodate ──
+    if (!bleChar) {
+      log('Enumerare fara rezultat — incerc UUID-uri hardcodate...');
+      for (let si = 0; si < CANDIDATE_SERVICES.length && !bleChar; si++) {
+        try {
+          const svc = await server.getPrimaryService(CANDIDATE_SERVICES[si]);
+          log('Serviciu hardcodat gasit: ' + shortUUID(CANDIDATE_SERVICES[si]));
+          for (let ci = 0; ci < CANDIDATE_CHARS.length && !bleChar; ci++) {
+            try {
+              const ch = await svc.getCharacteristic(CANDIDATE_CHARS[ci]);
+              bleChar = ch;
+              log('Caracteristica hardcodata gasita: ' + shortUUID(CANDIDATE_CHARS[ci]));
+              try {
+                await ch.startNotifications();
+                ch.addEventListener('characteristicvaluechanged', onDataReceived);
+              } catch(e) {}
+            } catch(e2) {}
+          }
+        } catch(e) {}
+      }
+    }
+
+    if (!bleChar) {
+      log('EROARE FINALA: Nicio caracteristica de scriere gasita!');
+      log('→ Verifica: modulul JDY-16 e montat pe Arduino si Arduino e pornit?');
+      setStatus('Eroare — vezi Debug', 'error');
+      return;
+    }
+
+    setStatus((bleDevice.name || 'Conectat') + ' ✓', 'connected');
+    log('=== CONECTAT CU SUCCES! Poti trimite comenzi. ===');
+
+  } catch(err) {
+    bleDevice = null; bleChar = null;
+    if (err.name === 'NotFoundError' || err.name === 'AbortError') {
+      setStatus('Anulat', 'idle');
+      log('Selectie anulata.');
+    } else {
+      setStatus('Eroare — ' + err.name, 'error');
+      log('EROARE: ' + err.name + ' — ' + err.message);
+    }
+  }
+}
+
+function shortUUID(uuid) {
+  // Afiseaza doar partea scurta: 0000ffe0-... → FFE0
+  if (!uuid) return '?';
+  const m = uuid.match(/^0000([0-9a-f]{4})/i);
+  return m ? m[1].toUpperCase() : uuid.substring(0, 8) + '...';
+}
+
+function onDisconnect() {
+  stopDataStream();
+  bleChar = null;
+  setStatus('Deconectat', 'idle');
+  log('Conexiune pierduta.');
+}
+
+// ── SEND COMMAND ──
+async function sendCmd(cmd) {
+  if (!bleChar) { log('Nu esti conectat!'); return; }
+  try {
+    const encoder = new TextEncoder();
+    await bleChar.writeValue(encoder.encode(cmd));
+    log('Trimis: ' + cmd);
+  } catch(err) {
+    log('Eroare trimitere: ' + err.message);
+  }
+}
+
+// ── TOGGLE DEVICE (LED/FAN) ──
+function toggleDevice(checkbox, cmdOn, cmdOff, badgeId) {
+  const badge = document.getElementById(badgeId);
+  if (checkbox.checked) {
+    sendCmd(cmdOn);
+    badge.textContent = 'ON';
+    badge.className = 'badge on';
+  } else {
+    sendCmd(cmdOff);
+    badge.textContent = 'OFF';
+    badge.className = 'badge off';
+  }
+}
+
+// ── DOOR PASSWORD ──
+// Arduino nou: substring(2, length-1) extrage parola din %Q1234#
+// Ex: "%Q1234#" → length=7, substring(2,6) = "1234" ✓
+function openDoor() {
+  const pass = document.getElementById('door-pass').value.trim();
+  if (!pass) { log('Introdu parola!'); return; }
+  const cmd = '%Q' + pass + '#';
+  sendCmd(cmd);
+  log('Trimit parola: ' + cmd);
+  document.getElementById('door-status').textContent = 'Aștept răspuns...';
+  document.getElementById('door-status').className = 'door-status';
+}
+
+// ── DATA STREAM ──
+function toggleDataStream() {
+  if (isStreaming) {
+    stopDataStream();
+  } else {
+    startDataStream();
+  }
+}
+
+function startDataStream() {
+  if (!bleChar) { log('Nu esti conectat!'); return; }
+  isStreaming = true;
+  document.getElementById('btn-getdata').classList.add('active');
+  document.getElementById('getdata-icon').textContent = '⏹';
+  dataInterval = setInterval(() => sendCmd('%K#'), 500);
+  log('Data stream pornit (500ms)...');
+}
+
+function stopDataStream() {
+  isStreaming = false;
+  clearInterval(dataInterval);
+  document.getElementById('btn-getdata').classList.remove('active');
+  document.getElementById('getdata-icon').textContent = '▶';
+  if (bleChar) log('Data stream oprit.');
+}
+
+// ── PARSE INCOMING DATA ──
+// Format nou Arduino:
+//   Senzori: "L:512,T:24,H:55"
+//   Usa OK:  "RIGHT"
+//   Usa ERR: "ERROR"
+function onDataReceived(event) {
+  const decoder = new TextDecoder('utf-8');
+  const raw = decoder.decode(event.target.value).trim();
+  log('Primit: ' + raw);
+
+  // Raspuns usa
+  if (raw.toUpperCase().includes('RIGHT')) {
+    document.getElementById('door-status').textContent = '✓ Parolă corectă — Ușa deschisă!';
+    document.getElementById('door-status').className = 'door-status right';
+    return;
+  }
+  if (raw.toUpperCase().includes('ERROR')) {
+    document.getElementById('door-status').textContent = '✗ Parolă greșită — Încearcă din nou';
+    document.getElementById('door-status').className = 'door-status error';
+    return;
+  }
+
+  // Senzori format: L:512,T:24,H:55
+  const lm = raw.match(/L:(\d+)/);
+  const tm = raw.match(/T:(\d+)/);
+  const hm = raw.match(/H:(\d+)/);
+  if (lm) document.getElementById('s-light').textContent = lm[1];
+  if (tm) document.getElementById('s-temp').textContent  = tm[1];
+  if (hm) document.getElementById('s-hum').textContent   = hm[1];
+}
+}
+</script>
+</body>
+</html>
